@@ -1,0 +1,38 @@
+This project will create a goal tracking PDF that the user can then take and fill out manually.  It is meant to track a single goal throughout the year.
+
+The PDF will be create in black/white/greyscale colors, and will only be printed in portrait orientation.
+
+
+Header: Add a "Goal Tracker" title at the top.
+Then add 2 lines in a smaller font for the user to write their goal.
+
+There will be columns for:
+1. Quarterly Goals
+2. Monthly Goals
+3. Weekly Goals
+4. A checkbox by each week so the user can manually track the completion of their weekly goals.
+
+Although there will be months and week numbers used, make the PDF generic enough to be used in any year.
+The Quarterly and Monthly columns will be the same size horizontally.  The Weekly column will be larger to accommodate more text.
+The weekly checkbox should be sized so each box is a square.
+There will be 52 rows in the Weekly Goals section, one row per week.  Each week should have an underscore to write on, and should begin with the number of the week, 1-52.
+Each month will be the same size vertically as 4 weeks.  Include a line on each row for the user to write on.  Print the standard 3-letter month abbreviation (Jan, Feb, Mar, etc.) on the first row.
+There will be a blank space in the month section every 13th week - this is a catch-up week.  Each 13th week will stll have a week number, checkbox, etc.
+Each quarter will be the same size vertically as 13 weeks.  Include a line on the first 6 rows for the user to write on, clustered at the top of each quarter.  Print "Q1", "Q2", etc. on the first row of each quarter.
+
+
+Use a clean and simple design with clear fonts and adequate spacing.
+Ensure the PDF is easily printable on Letter size paper.
+
+Use the Habit_Tracker repo as a reference for design and structure.  There's is a temporary copy of habit_tracker at "documentation\habit_tracker".
+
+
+
+General requirements:
+1. Use python and any relevant python libraries.
+2. The code should be modular and well-documented.
+3. Include error handling.
+4. Provide instructions on how to run the code and generate the PDF.
+5. Ensure the generated PDF is compatible with common PDF viewers and printers.
+6. Use poetry for envionment management and dependency handling.  Create the poetry folder locally.
+7. Include a README file with an overview of the project, installation instructions, and usage guidelines.
