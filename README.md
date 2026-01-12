@@ -175,7 +175,7 @@ Notes:
 
 ## Screenshot
 
-![Goal Tracker PDF Preview](output/goal_tracker_preview.png)
+![Goal Tracker PDF Preview](documentation/goal_tracker_preview.png)
 
 *Generated preview of the Goal Tracker template. The actual PDF can be customized via `config.yaml`.*
 
