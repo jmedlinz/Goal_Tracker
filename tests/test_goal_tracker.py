@@ -2,18 +2,17 @@
 Unit and integration tests for Goal Tracker PDF Generator
 """
 
-import pytest
-import tempfile
-from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
+
 from goal_tracker import (
+    DrawingHelper,
+    FontConfig,
     GoalTrackerConfig,
+    GoalTrackerPDF,
     LayoutManager,
     PageConfig,
-    FontConfig,
-    DrawingHelper,
-    GoalTrackerPDF
 )
 
 
@@ -61,7 +60,7 @@ output:
 
         config = GoalTrackerConfig(str(config_file))
         assert config is not None
-        assert config.config['page']['size'] == 'letter'
+        assert config.config["page"]["size"] == "letter"
 
     def test_config_file_not_found(self):
         """Test that FileNotFoundError is raised for missing config file."""
@@ -157,7 +156,7 @@ output:
         font_config = config.get_font_config()
 
         assert isinstance(font_config, FontConfig)
-        assert font_config.family == 'Helvetica'
+        assert font_config.family == "Helvetica"
         assert font_config.title_size == 18
 
 
@@ -173,14 +172,14 @@ class TestLayoutManager:
             top_margin=36,  # 0.5 inches
             bottom_margin=36,
             left_margin=36,
-            right_margin=36
+            right_margin=36,
         )
         layout_config = {
-            'quarterly_column_width': 1.25,
-            'monthly_column_width': 1.25,
-            'weekly_column_width': 4.5,
-            'checkbox_size': 0.15,
-            'row_height': 0.185
+            "quarterly_column_width": 1.25,
+            "monthly_column_width": 1.25,
+            "weekly_column_width": 4.5,
+            "checkbox_size": 0.15,
+            "row_height": 0.185,
         }
         return LayoutManager(page_config, layout_config)
 
@@ -194,25 +193,25 @@ class TestLayoutManager:
         """Test getting column x-coordinates."""
         positions = layout_manager.get_column_x_positions()
 
-        assert 'quarterly' in positions
-        assert 'monthly' in positions
-        assert 'weekly' in positions
-        assert 'checkbox' in positions
+        assert "quarterly" in positions
+        assert "monthly" in positions
+        assert "weekly" in positions
+        assert "checkbox" in positions
 
         # Verify ordering (left to right)
-        assert positions['quarterly'] < positions['monthly']
-        assert positions['monthly'] < positions['weekly']
-        assert positions['weekly'] < positions['checkbox']
+        assert positions["quarterly"] < positions["monthly"]
+        assert positions["monthly"] < positions["weekly"]
+        assert positions["weekly"] < positions["checkbox"]
 
     def test_get_column_widths(self, layout_manager):
         """Test getting column widths."""
         widths = layout_manager.get_column_widths()
 
         assert all(width > 0 for width in widths.values())
-        assert 'quarterly' in widths
-        assert 'monthly' in widths
-        assert 'weekly' in widths
-        assert 'checkbox' in widths
+        assert "quarterly" in widths
+        assert "monthly" in widths
+        assert "weekly" in widths
+        assert "checkbox" in widths
 
     def test_get_quarter_for_week(self):
         """Test quarter calculation for week numbers."""
@@ -237,11 +236,11 @@ class TestLayoutManager:
 
     def test_get_month_abbreviation(self):
         """Test month abbreviation retrieval."""
-        assert LayoutManager.get_month_abbreviation(1) == 'Jan'
-        assert LayoutManager.get_month_abbreviation(6) == 'Jun'
-        assert LayoutManager.get_month_abbreviation(12) == 'Dec'
-        assert LayoutManager.get_month_abbreviation(0) == ''
-        assert LayoutManager.get_month_abbreviation(13) == ''
+        assert LayoutManager.get_month_abbreviation(1) == "Jan"
+        assert LayoutManager.get_month_abbreviation(6) == "Jun"
+        assert LayoutManager.get_month_abbreviation(12) == "Dec"
+        assert LayoutManager.get_month_abbreviation(0) == ""
+        assert LayoutManager.get_month_abbreviation(13) == ""
 
     def test_get_row_height(self, layout_manager):
         """Test row height calculation."""
@@ -269,7 +268,7 @@ class TestLayoutManager:
 class TestDrawingHelper:
     """Tests for DrawingHelper class."""
 
-    @patch('goal_tracker.canvas.Canvas')
+    @patch("goal_tracker.canvas.Canvas")
     def test_draw_line(self, mock_canvas):
         """Test drawing a line."""
         c = Mock()
@@ -279,7 +278,7 @@ class TestDrawingHelper:
         c.setStrokeColorRGB.assert_called()
         c.line.assert_called_with(0, 0, 100, 100)
 
-    @patch('goal_tracker.canvas.Canvas')
+    @patch("goal_tracker.canvas.Canvas")
     def test_draw_rectangle(self, mock_canvas):
         """Test drawing a rectangle."""
         c = Mock()
@@ -289,7 +288,7 @@ class TestDrawingHelper:
         c.setStrokeColorRGB.assert_called()
         c.rect.assert_called()
 
-    @patch('goal_tracker.canvas.Canvas')
+    @patch("goal_tracker.canvas.Canvas")
     def test_draw_text(self, mock_canvas):
         """Test drawing text."""
         c = Mock()

@@ -7,19 +7,19 @@ track a single goal throughout the year with quarterly, monthly, and weekly brea
 
 import argparse
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
-from dataclasses import dataclass
 
 import yaml
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas
 
 
 @dataclass
 class PageConfig:
     """Configuration for page settings."""
+
     width: float
     height: float
     top_margin: float
@@ -31,6 +31,7 @@ class PageConfig:
 @dataclass
 class FontConfig:
     """Configuration for font settings."""
+
     family: str
     title_size: int
     goal_line_size: int
@@ -58,78 +59,78 @@ class GoalTrackerConfig:
         if not self.config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
-        with open(self.config_path, 'r') as f:
+        with open(self.config_path) as f:
             self.config = yaml.safe_load(f)
 
         self._validate_config()
 
     def _validate_config(self) -> None:
         """Validate that required configuration keys are present."""
-        required_keys = ['page', 'fonts', 'colors', 'layout', 'output']
+        required_keys = ["page", "fonts", "colors", "layout", "output"]
         for key in required_keys:
             if key not in self.config:
                 raise ValueError(f"Missing required config key: {key}")
 
     def get_page_config(self) -> PageConfig:
         """Get page configuration."""
-        page_cfg = self.config['page']
-        margins = page_cfg['margins']
+        page_cfg = self.config["page"]
+        margins = page_cfg["margins"]
 
         return PageConfig(
             width=8.5 * inch,
             height=11.0 * inch,
-            top_margin=margins['top'] * inch,
-            bottom_margin=margins['bottom'] * inch,
-            left_margin=margins['left'] * inch,
-            right_margin=margins['right'] * inch
+            top_margin=margins["top"] * inch,
+            bottom_margin=margins["bottom"] * inch,
+            left_margin=margins["left"] * inch,
+            right_margin=margins["right"] * inch,
         )
 
     def get_font_config(self) -> FontConfig:
         """Get font configuration."""
-        fonts = self.config['fonts']
+        fonts = self.config["fonts"]
 
         return FontConfig(
-            family=fonts['family'],
-            title_size=fonts['title_size'],
-            goal_line_size=fonts['goal_line_size'],
-            quarter_label_size=fonts['quarter_label_size'],
-            month_label_size=fonts['month_label_size'],
-            week_number_size=fonts['week_number_size']
+            family=fonts["family"],
+            title_size=fonts["title_size"],
+            goal_line_size=fonts["goal_line_size"],
+            quarter_label_size=fonts["quarter_label_size"],
+            month_label_size=fonts["month_label_size"],
+            week_number_size=fonts["week_number_size"],
         )
 
     def get_colors(self) -> Dict[str, Tuple[int, int, int]]:
         """Get color configuration."""
-        colors = self.config.get('colors', {})
+        colors = self.config.get("colors", {})
 
         # Provide sensible fallbacks for optional color keys used by rendering
-        grid_line = tuple(colors.get('grid_line', (0, 0, 0)))
-        light_grid = tuple(colors.get('light_grid', (180, 180, 180)))
-        text = tuple(colors.get('text', (0, 0, 0)))
+        grid_line = tuple(colors.get("grid_line", (0, 0, 0)))
+        light_grid = tuple(colors.get("light_grid", (180, 180, 180)))
+        text = tuple(colors.get("text", (0, 0, 0)))
         # Default week numbers to light grid (grey) if unspecified
-        week_number = tuple(colors.get('week_number', light_grid))
+        week_number = tuple(colors.get("week_number", light_grid))
         # Default row stripes to a very light grey if unspecified
-        row_stripe = tuple(colors.get('row_stripe', (230, 230, 230)))
+        row_stripe = tuple(colors.get("row_stripe", (230, 230, 230)))
 
         return {
-            'grid_line': grid_line,
-            'light_grid': light_grid,
-            'text': text,
-            'week_number': week_number,
-            'row_stripe': row_stripe
+            "grid_line": grid_line,
+            "light_grid": light_grid,
+            "text": text,
+            "week_number": week_number,
+            "row_stripe": row_stripe,
         }
 
     def get_layout(self) -> Dict:
         """Get layout configuration."""
-        return self.config['layout']
+        return self.config["layout"]
 
     def get_output_dir(self) -> Path:
         """Get output directory path."""
-        output_dir = Path(self.config['output']['directory'])
+        output_dir = Path(self.config["output"]["directory"])
         return output_dir
 
     def get_output_filename(self) -> str:
         """Get output filename."""
-        return self.config['output']['filename']
+        return self.config["output"]["filename"]
 
 
 class LayoutManager:
@@ -157,14 +158,10 @@ class LayoutManager:
     def _calculate_dimensions(self) -> None:
         """Calculate available space and row height."""
         self.available_width = (
-            self.page_config.width -
-            self.page_config.left_margin -
-            self.page_config.right_margin
+            self.page_config.width - self.page_config.left_margin - self.page_config.right_margin
         )
         self.available_height = (
-            self.page_config.height -
-            self.page_config.top_margin -
-            self.page_config.bottom_margin
+            self.page_config.height - self.page_config.top_margin - self.page_config.bottom_margin
         )
 
         # Calculate actual row height to fit all 52 weeks within margins
@@ -174,10 +171,10 @@ class LayoutManager:
 
     def get_column_x_positions(self) -> Dict[str, float]:
         """Get x-coordinates for each column."""
-        col_width_q = self.layout_config['quarterly_column_width'] * inch
-        col_width_m = self.layout_config['monthly_column_width'] * inch
-        col_width_w = self.layout_config['weekly_column_width'] * inch
-        col_width_checkbox = self.layout_config['checkbox_size'] * inch
+        col_width_q = self.layout_config["quarterly_column_width"] * inch
+        col_width_m = self.layout_config["monthly_column_width"] * inch
+        col_width_w = self.layout_config["weekly_column_width"] * inch
+        col_width_checkbox = self.layout_config["checkbox_size"] * inch
 
         # Calculate total grid width
         total_grid_width = col_width_q + col_width_m + col_width_w + col_width_checkbox
@@ -190,20 +187,15 @@ class LayoutManager:
         x_weekly = x_monthly + col_width_m
         x_checkbox = x_weekly + col_width_w
 
-        return {
-            'quarterly': x_quarterly,
-            'monthly': x_monthly,
-            'weekly': x_weekly,
-            'checkbox': x_checkbox
-        }
+        return {"quarterly": x_quarterly, "monthly": x_monthly, "weekly": x_weekly, "checkbox": x_checkbox}
 
     def get_column_widths(self) -> Dict[str, float]:
         """Get width of each column."""
         return {
-            'quarterly': self.layout_config['quarterly_column_width'] * inch,
-            'monthly': self.layout_config['monthly_column_width'] * inch,
-            'weekly': self.layout_config['weekly_column_width'] * inch,
-            'checkbox': self.layout_config['checkbox_size'] * inch
+            "quarterly": self.layout_config["quarterly_column_width"] * inch,
+            "monthly": self.layout_config["monthly_column_width"] * inch,
+            "weekly": self.layout_config["weekly_column_width"] * inch,
+            "checkbox": self.layout_config["checkbox_size"] * inch,
         }
 
     def get_row_height(self) -> float:
@@ -227,12 +219,7 @@ class LayoutManager:
         row_height = self.get_row_height()
         header_height = self.get_header_height()
 
-        y = (
-            self.page_config.height -
-            self.page_config.top_margin -
-            header_height -
-            (week_number - 1) * row_height
-        )
+        y = self.page_config.height - self.page_config.top_margin - header_height - (week_number - 1) * row_height
         return y
 
     @staticmethod
@@ -248,10 +235,18 @@ class LayoutManager:
 
         # Map week to month
         month_mapping = {
-            range(1, 5): 1, range(5, 9): 2, range(9, 13): 3,
-            range(14, 18): 4, range(18, 22): 5, range(22, 26): 6,
-            range(27, 31): 7, range(31, 35): 8, range(35, 39): 9,
-            range(40, 44): 10, range(44, 48): 11, range(48, 52): 12
+            range(1, 5): 1,
+            range(5, 9): 2,
+            range(9, 13): 3,
+            range(14, 18): 4,
+            range(18, 22): 5,
+            range(22, 26): 6,
+            range(27, 31): 7,
+            range(31, 35): 8,
+            range(35, 39): 9,
+            range(40, 44): 10,
+            range(44, 48): 11,
+            range(48, 52): 12,
         }
 
         for week_range, month in month_mapping.items():
@@ -268,20 +263,24 @@ class LayoutManager:
     @staticmethod
     def get_month_abbreviation(month_number: int) -> str:
         """Get 3-letter abbreviation for month."""
-        abbreviations = [
-            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-        ]
-        return abbreviations[month_number - 1] if 1 <= month_number <= 12 else ''
+        abbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        return abbreviations[month_number - 1] if 1 <= month_number <= 12 else ""
 
 
 class DrawingHelper:
     """Utility functions for drawing lines, boxes, and text."""
 
     @staticmethod
-    def draw_line(c: canvas.Canvas, x1: float, y1: float, x2: float, y2: float,
-                  stroke_width: float = 0.5, color: Tuple[int, int, int] = (0, 0, 0),
-                  dash: List[int] = None) -> None:
+    def draw_line(
+        c: canvas.Canvas,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        stroke_width: float = 0.5,
+        color: Tuple[int, int, int] = (0, 0, 0),
+        dash: List[int] = None,
+    ) -> None:
         """
         Draw a line on the canvas.
 
@@ -294,7 +293,7 @@ class DrawingHelper:
             dash: Dash pattern as list [on, off] in points
         """
         c.setLineWidth(stroke_width)
-        c.setStrokeColorRGB(*[x/255 for x in color])
+        c.setStrokeColorRGB(*[x / 255 for x in color])
         if dash:
             c.setDash(dash)
         c.line(x1, y1, x2, y2)
@@ -303,8 +302,15 @@ class DrawingHelper:
         c.setStrokeColorRGB(0, 0, 0)  # Reset to black
 
     @staticmethod
-    def draw_rectangle(c: canvas.Canvas, x: float, y: float, width: float, height: float,
-                       stroke_width: float = 1, color: Tuple[int, int, int] = (0, 0, 0)) -> None:
+    def draw_rectangle(
+        c: canvas.Canvas,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
+        stroke_width: float = 1,
+        color: Tuple[int, int, int] = (0, 0, 0),
+    ) -> None:
         """
         Draw a rectangle outline on the canvas.
 
@@ -316,13 +322,21 @@ class DrawingHelper:
             color: RGB color tuple
         """
         c.setLineWidth(stroke_width)
-        c.setStrokeColorRGB(*[x/255 for x in color])
+        c.setStrokeColorRGB(*[x / 255 for x in color])
         c.rect(x, y, width, height, fill=0)
         c.setStrokeColorRGB(0, 0, 0)  # Reset to black
 
     @staticmethod
-    def draw_text(c: canvas.Canvas, text: str, x: float, y: float, font: str = 'Helvetica',
-                  size: int = 10, color: Tuple[int, int, int] = (0, 0, 0), align: str = 'left') -> None:
+    def draw_text(
+        c: canvas.Canvas,
+        text: str,
+        x: float,
+        y: float,
+        font: str = "Helvetica",
+        size: int = 10,
+        color: Tuple[int, int, int] = (0, 0, 0),
+        align: str = "left",
+    ) -> None:
         """
         Draw text on the canvas.
 
@@ -336,8 +350,8 @@ class DrawingHelper:
             align: Text alignment ('left' or 'right')
         """
         c.setFont(font, size)
-        c.setFillColorRGB(*[x/255 for x in color])
-        if align == 'right':
+        c.setFillColorRGB(*[x / 255 for x in color])
+        if align == "right":
             c.drawRightString(x, y, text)
         else:
             c.drawString(x, y, text)
@@ -393,53 +407,60 @@ class GoalTrackerPDF:
         # Define header area
         header_top_y = self.page_config.height - self.page_config.top_margin
         header_height = self.layout.get_header_height()
-        header_bottom_y = header_top_y - header_height
+        header_top_y - header_height
 
         # Get grid boundaries for alignment
         col_positions = self.layout.get_column_x_positions()
         col_widths = self.layout.get_column_widths()
-        grid_left = col_positions['quarterly']
-        grid_right = col_positions['checkbox'] + col_widths['checkbox']
+        grid_left = col_positions["quarterly"]
+        grid_right = col_positions["checkbox"] + col_widths["checkbox"]
         grid_width = grid_right - grid_left
 
         # Allocate space: left 40% for Title/Date, right 60% for Goal
         left_w = grid_width * 0.4
         right_x = grid_left + left_w
-        right_w = grid_width - left_w
+        grid_width - left_w
         pad_x = 0.1 * inch
 
         # Left: Title and Date aligned to grid left
         title_y = header_top_y - 0.10 * inch
         DrawingHelper.draw_text(
-            c, "Goal Tracker", grid_left + pad_x, title_y,
+            c,
+            "Goal Tracker",
+            grid_left + pad_x,
+            title_y,
             font="Helvetica-Bold",
             size=self.font_config.goal_line_size,
-            color=self.colors['text']
+            color=self.colors["text"],
         )
 
         date_y = title_y - 0.15 * inch
         DrawingHelper.draw_text(
-            c, "Date:", grid_left + pad_x, date_y,
+            c,
+            "Date:",
+            grid_left + pad_x,
+            date_y,
             font=self.font_config.family,
             size=self.font_config.goal_line_size,
-            color=self.colors['text']
+            color=self.colors["text"],
         )
         date_line_start = grid_left + pad_x + 0.6 * inch
         # Make the date line fit within the left section
         date_line_end = right_x - pad_x
         DrawingHelper.draw_line(
-            c, date_line_start, date_y, date_line_end, date_y,
-            stroke_width=0.5,
-            color=self.colors['text']
+            c, date_line_start, date_y, date_line_end, date_y, stroke_width=0.5, color=self.colors["text"]
         )
 
         # Right: Goal label and two lines, aligned to grid right
         goal_label_y = title_y
         DrawingHelper.draw_text(
-            c, "Goal:", right_x + pad_x, goal_label_y,
+            c,
+            "Goal:",
+            right_x + pad_x,
+            goal_label_y,
             font=self.font_config.family,
             size=self.font_config.goal_line_size,
-            color=self.colors['text']
+            color=self.colors["text"],
         )
         goal_line_start = right_x + pad_x + 0.6 * inch
         goal_line_end = grid_right - pad_x  # Align to grid right
@@ -448,14 +469,10 @@ class GoalTrackerPDF:
         # Align second line with Date baseline
         line2_y = date_y
         DrawingHelper.draw_line(
-            c, goal_line_start, line1_y, goal_line_end, line1_y,
-            stroke_width=0.5,
-            color=self.colors['text']
+            c, goal_line_start, line1_y, goal_line_end, line1_y, stroke_width=0.5, color=self.colors["text"]
         )
         DrawingHelper.draw_line(
-            c, goal_line_start, line2_y, goal_line_end, line2_y,
-            stroke_width=0.5,
-            color=self.colors['text']
+            c, goal_line_start, line2_y, goal_line_end, line2_y, stroke_width=0.5, color=self.colors["text"]
         )
 
     def draw_grid(self, c: canvas.Canvas) -> None:
@@ -472,39 +489,34 @@ class GoalTrackerPDF:
         layout_config = self.config.get_layout()
 
         # Top of content area
-        y_top = (
-            self.page_config.height -
-            self.page_config.top_margin -
-            header_height
-        )
+        y_top = self.page_config.height - self.page_config.top_margin - header_height
 
         # Bottom of content area
         y_bottom = self.page_config.bottom_margin
 
         # Calculate right edge of content
-        x_right = col_positions['checkbox'] + col_widths['checkbox']
+        x_right = col_positions["checkbox"] + col_widths["checkbox"]
 
         # Draw row stripes if enabled
-        if layout_config.get('show_row_stripes', False):
-            stripe_color_rgb = [x/255 for x in self.colors['row_stripe']]
+        if layout_config.get("show_row_stripes", False):
+            stripe_color_rgb = [x / 255 for x in self.colors["row_stripe"]]
 
             for week in range(1, self.layout.WEEKS_IN_YEAR + 1):
                 y = self.layout.get_week_y_position(week)
 
                 # Skip shading on quarterly column
-                pass
 
                 # Shade alternating months (2, 4, 6, 8, 10, 12)
                 month = self.layout.get_month_for_week(week)
                 if month > 0 and month % 2 == 0:  # Even months only
                     c.setFillColorRGB(*stripe_color_rgb)
                     c.rect(
-                        col_positions['monthly'],
+                        col_positions["monthly"],
                         y - row_height,
-                        col_widths['monthly'],
+                        col_widths["monthly"],
                         row_height,
                         fill=1,
-                        stroke=0
+                        stroke=0,
                     )
                     c.setFillColorRGB(0, 0, 0)
 
@@ -512,17 +524,12 @@ class GoalTrackerPDF:
                 if week % 2 == 0:  # Even weeks
                     c.setFillColorRGB(*stripe_color_rgb)
                     c.rect(
-                        col_positions['weekly'],
-                        y - row_height,
-                        col_widths['weekly'],
-                        row_height,
-                        fill=1,
-                        stroke=0
+                        col_positions["weekly"], y - row_height, col_widths["weekly"], row_height, fill=1, stroke=0
                     )
                     c.setFillColorRGB(0, 0, 0)
 
         # Get weekly line weight from config
-        weekly_line_weight = layout_config.get('weekly_line_weight', 0.5)
+        weekly_line_weight = layout_config.get("weekly_line_weight", 0.5)
 
         # Draw horizontal lines for each week
         for week in range(1, self.layout.WEEKS_IN_YEAR + 1):
@@ -530,20 +537,24 @@ class GoalTrackerPDF:
 
             # Draw thin line at bottom of row (subtract row height)
             line_y = y - row_height
-            line_start = col_positions['weekly'] + 0.1 * inch
+            line_start = col_positions["weekly"] + 0.1 * inch
             # Apply 1/8" trim on the left for all weekly lines
             line_start += 0.125 * inch
 
             # Base right boundary with prior adjustments
             line_end = (
-                col_positions['checkbox'] + col_widths['checkbox'] - 0.05 * inch - 0.125 * inch + 0.0625 * inch
+                col_positions["checkbox"] + col_widths["checkbox"] - 0.05 * inch - 0.125 * inch + 0.0625 * inch
             )
             # Apply an additional 1/8" trim on the right for all weekly lines
             line_end -= 0.125 * inch
             DrawingHelper.draw_line(
-                c, line_start, line_y, line_end, line_y,
+                c,
+                line_start,
+                line_y,
+                line_end,
+                line_y,
                 stroke_width=weekly_line_weight,
-                color=self.colors['text']  # Dark/black line
+                color=self.colors["text"],  # Dark/black line
             )
 
         # Draw quarter boxes
@@ -558,22 +569,23 @@ class GoalTrackerPDF:
             y_bottom = self.layout.get_week_y_position(end_week) - row_height
 
             # Left edge (quarterly column start) and right edge (right side of checkbox column)
-            x_left = col_positions['quarterly']
-            x_right = col_positions['checkbox'] + col_widths['checkbox']
+            x_left = col_positions["quarterly"]
+            x_right = col_positions["checkbox"] + col_widths["checkbox"]
 
             # Draw the box outline
             DrawingHelper.draw_rectangle(
-                c, x_left, y_bottom, x_right - x_left, y_top - y_bottom,
+                c,
+                x_left,
+                y_bottom,
+                x_right - x_left,
+                y_top - y_bottom,
                 stroke_width=1.0,
-                color=self.colors['grid_line']
+                color=self.colors["grid_line"],
             )
 
         # Draw month boxes
         # Build month structure like in draw_monthly_column
-        month_lines = {
-            1: [], 2: [], 3: [], 4: [], 5: [], 6: [],
-            7: [], 8: [], 9: [], 10: [], 11: [], 12: []
-        }
+        month_lines = {1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 10: [], 11: [], 12: []}
 
         current_month = 1
         month_week_count = 0
@@ -606,14 +618,18 @@ class GoalTrackerPDF:
             y_bottom = self.layout.get_week_y_position(last_week) - row_height
 
             # Left edge (monthly column start) and right edge (right side of checkbox column)
-            x_left = col_positions['monthly']
-            x_right = col_positions['checkbox'] + col_widths['checkbox']
+            x_left = col_positions["monthly"]
+            x_right = col_positions["checkbox"] + col_widths["checkbox"]
 
             # Draw the box outline
             DrawingHelper.draw_rectangle(
-                c, x_left, y_bottom, x_right - x_left, y_top - y_bottom,
+                c,
+                x_left,
+                y_bottom,
+                x_right - x_left,
+                y_top - y_bottom,
                 stroke_width=0.75,
-                color=self.colors['grid_line']
+                color=self.colors["grid_line"],
             )
 
     def draw_quarterly_column(self, c: canvas.Canvas) -> None:
@@ -623,13 +639,13 @@ class GoalTrackerPDF:
         Args:
             c: Canvas object
         """
-        col_x = self.layout.get_column_x_positions()['quarterly']
-        col_width = self.layout.get_column_widths()['quarterly']
+        col_x = self.layout.get_column_x_positions()["quarterly"]
+        col_width = self.layout.get_column_widths()["quarterly"]
         row_height = self.layout.get_row_height()
         layout_config = self.config.get_layout()
-        label_padding_y = layout_config.get('label_padding_y', 0.07) * inch
+        label_padding_y = layout_config.get("label_padding_y", 0.07) * inch
 
-        quarters = ['Q1', 'Q2', 'Q3', 'Q4']
+        quarters = ["Q1", "Q2", "Q3", "Q4"]
         lines_per_quarter = 6
 
         for quarter_num in range(1, self.layout.QUARTERS_IN_YEAR + 1):
@@ -639,11 +655,13 @@ class GoalTrackerPDF:
             # Draw quarter label with label padding below the grey line
             y_label = y_start - row_height / 2 - label_padding_y
             DrawingHelper.draw_text(
-                c, quarters[quarter_num - 1],
-                col_x + 0.1 * inch, y_label,
+                c,
+                quarters[quarter_num - 1],
+                col_x + 0.1 * inch,
+                y_label,
                 font=self.font_config.family,
                 size=self.font_config.quarter_label_size,
-                color=self.colors['text']
+                color=self.colors["text"],
             )
 
             # Draw lines for writing goals (6 lines per quarter, skip first)
@@ -655,9 +673,7 @@ class GoalTrackerPDF:
                 line_x_start = col_x + 0.05 * inch
                 line_x_end = col_x + col_width - 0.05 * inch
                 DrawingHelper.draw_line(
-                    c, line_x_start, y, line_x_end, y,
-                    stroke_width=0.5,
-                    color=self.colors['text']
+                    c, line_x_start, y, line_x_end, y, stroke_width=0.5, color=self.colors["text"]
                 )
                 y -= row_height
 
@@ -668,16 +684,13 @@ class GoalTrackerPDF:
         Args:
             c: Canvas object
         """
-        col_x = self.layout.get_column_x_positions()['monthly']
-        col_width = self.layout.get_column_widths()['monthly']
+        col_x = self.layout.get_column_x_positions()["monthly"]
+        col_width = self.layout.get_column_widths()["monthly"]
         row_height = self.layout.get_row_height()
         layout_config = self.config.get_layout()
-        label_padding_y = layout_config.get('label_padding_y', 0.07) * inch
+        label_padding_y = layout_config.get("label_padding_y", 0.07) * inch
 
-        month_lines = {
-            1: [], 2: [], 3: [], 4: [], 5: [], 6: [],
-            7: [], 8: [], 9: [], 10: [], 11: [], 12: []
-        }
+        month_lines = {1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 10: [], 11: [], 12: []}
 
         # Track weeks for each month
         current_month = 1
@@ -708,11 +721,13 @@ class GoalTrackerPDF:
             month_abbrev = self.layout.get_month_abbreviation(month_num)
             y_label = y_start - row_height / 2 - label_padding_y
             DrawingHelper.draw_text(
-                c, month_abbrev,
-                col_x + 0.1 * inch, y_label,
+                c,
+                month_abbrev,
+                col_x + 0.1 * inch,
+                y_label,
                 font=self.font_config.family,
                 size=self.font_config.month_label_size,
-                color=self.colors['text']
+                color=self.colors["text"],
             )
 
             # Draw lines for writing goals
@@ -721,9 +736,7 @@ class GoalTrackerPDF:
                 line_x_start = col_x + 0.05 * inch
                 line_x_end = col_x + col_width - 0.05 * inch
                 DrawingHelper.draw_line(
-                    c, line_x_start, y, line_x_end, y,
-                    stroke_width=0.5,
-                    color=self.colors['text']
+                    c, line_x_start, y, line_x_end, y, stroke_width=0.5, color=self.colors["text"]
                 )
                 y -= row_height
 
@@ -734,11 +747,11 @@ class GoalTrackerPDF:
         Args:
             c: Canvas object
         """
-        col_x = self.layout.get_column_x_positions()['weekly']
-        col_width = self.layout.get_column_widths()['weekly']
+        col_x = self.layout.get_column_x_positions()["weekly"]
+        self.layout.get_column_widths()["weekly"]
         row_height = self.layout.get_row_height()
         layout_config = self.config.get_layout()
-        label_padding_y = layout_config.get('label_padding_y', 0.07) * inch
+        label_padding_y = layout_config.get("label_padding_y", 0.07) * inch
 
         for week in range(1, self.layout.WEEKS_IN_YEAR + 1):
             y = self.layout.get_week_y_position(week)
@@ -750,12 +763,14 @@ class GoalTrackerPDF:
             y_text = y - row_height / 2 - label_padding_y
 
             DrawingHelper.draw_text(
-                c, week_text,
-                text_x, y_text,
+                c,
+                week_text,
+                text_x,
+                y_text,
                 font=self.font_config.family,
                 size=self.font_config.week_number_size,
-                color=self.colors['week_number'],  # Use grey color
-                align='right'
+                color=self.colors["week_number"],  # Use grey color
+                align="right",
             )
 
             # Catch-up messaging in weekly column
@@ -771,12 +786,14 @@ class GoalTrackerPDF:
                 # Place message starting just to the right of the week number
                 message_x = col_x + 0.35 * inch
                 DrawingHelper.draw_text(
-                    c, catch_up_text,
-                    message_x, y_text,
-                    font=self.font_config.family + '-Oblique',
+                    c,
+                    catch_up_text,
+                    message_x,
+                    y_text,
+                    font=self.font_config.family + "-Oblique",
                     size=self.font_config.week_number_size,
-                    color=self.colors['week_number'],
-                    align='left'
+                    color=self.colors["week_number"],
+                    align="left",
                 )
 
     def draw_checkbox_column(self, c: canvas.Canvas) -> None:
@@ -786,42 +803,36 @@ class GoalTrackerPDF:
         Args:
             c: Canvas object
         """
-        col_x = self.layout.get_column_x_positions()['checkbox']
-        checkbox_size = self.layout.get_column_widths()['checkbox']
+        col_x = self.layout.get_column_x_positions()["checkbox"]
+        checkbox_size = self.layout.get_column_widths()["checkbox"]
         row_height = self.layout.get_row_height()
 
         for week in range(1, self.layout.WEEKS_IN_YEAR + 1):
             y = self.layout.get_week_y_position(week)
 
             # Center checkbox in column
-            box_x = col_x + (checkbox_size - self.layout_config['checkbox_size'] * inch) / 2
-            box_y = y - row_height / 2 - self.layout_config['checkbox_size'] * inch / 2
+            box_x = col_x + (checkbox_size - self.layout_config["checkbox_size"] * inch) / 2
+            box_y = y - row_height / 2 - self.layout_config["checkbox_size"] * inch / 2
 
             # Draw checkbox square
             DrawingHelper.draw_rectangle(
-                c, box_x, box_y,
-                self.layout_config['checkbox_size'] * inch,
-                self.layout_config['checkbox_size'] * inch,
+                c,
+                box_x,
+                box_y,
+                self.layout_config["checkbox_size"] * inch,
+                self.layout_config["checkbox_size"] * inch,
                 stroke_width=1,
-                color=self.colors['text']
+                color=self.colors["text"],
             )
 
 
 def main() -> None:
     """Main entry point for the Goal Tracker PDF generator."""
-    parser = argparse.ArgumentParser(
-        description="Generate a printable annual Goal Tracker PDF"
-    )
+    parser = argparse.ArgumentParser(description="Generate a printable annual Goal Tracker PDF")
     parser.add_argument(
-        '--config',
-        default='config.yaml',
-        help='Path to configuration file (default: config.yaml)'
+        "--config", default="config.yaml", help="Path to configuration file (default: config.yaml)"
     )
-    parser.add_argument(
-        '--output',
-        default=None,
-        help='Output PDF filename (default: from config.yaml)'
-    )
+    parser.add_argument("--output", default=None, help="Output PDF filename (default: from config.yaml)")
 
     args = parser.parse_args()
 
@@ -854,5 +865,5 @@ def main() -> None:
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
