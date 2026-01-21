@@ -99,13 +99,23 @@ class GoalTrackerConfig:
 
     def get_colors(self) -> Dict[str, Tuple[int, int, int]]:
         """Get color configuration."""
-        colors = self.config['colors']
+        colors = self.config.get('colors', {})
+
+        # Provide sensible fallbacks for optional color keys used by rendering
+        grid_line = tuple(colors.get('grid_line', (0, 0, 0)))
+        light_grid = tuple(colors.get('light_grid', (180, 180, 180)))
+        text = tuple(colors.get('text', (0, 0, 0)))
+        # Default week numbers to light grid (grey) if unspecified
+        week_number = tuple(colors.get('week_number', light_grid))
+        # Default row stripes to a very light grey if unspecified
+        row_stripe = tuple(colors.get('row_stripe', (230, 230, 230)))
+
         return {
-            'grid_line': tuple(colors['grid_line']),
-            'light_grid': tuple(colors['light_grid']),
-            'text': tuple(colors['text']),
-            'week_number': tuple(colors['week_number']),
-            'row_stripe': tuple(colors['row_stripe'])
+            'grid_line': grid_line,
+            'light_grid': light_grid,
+            'text': text,
+            'week_number': week_number,
+            'row_stripe': row_stripe
         }
 
     def get_layout(self) -> Dict:
