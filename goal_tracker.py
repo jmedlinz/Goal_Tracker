@@ -6,10 +6,12 @@ track a single goal throughout the year with quarterly, monthly, and weekly brea
 """
 
 import argparse
+import calendar
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import yaml
 from reportlab.lib.units import inch
@@ -160,8 +162,12 @@ class LayoutManager:
         self.available_width = (
             self.page_config.width - self.page_config.left_margin - self.page_config.right_margin
         )
+        # Borrow a small amount of bottom margin (up to 0.1") to give the grid more vertical space
+        # while retaining at least half of the configured bottom margin to avoid print issues.
+        bonus_height = min(0.1 * inch, self.page_config.bottom_margin * 0.5)
+
         self.available_height = (
-            self.page_config.height - self.page_config.top_margin - self.page_config.bottom_margin
+            self.page_config.height - self.page_config.top_margin - self.page_config.bottom_margin + bonus_height
         )
 
         # Calculate actual row height to fit all 52 weeks within margins
@@ -204,7 +210,8 @@ class LayoutManager:
 
     def get_header_height(self) -> float:
         """Get height reserved for header section."""
-        return 0.6 * inch
+        # Slightly reduce header height to bring the grid closer to the subheader area
+        return 0.5 * inch
 
     def get_week_y_position(self, week_number: int) -> float:
         """
@@ -361,12 +368,13 @@ class DrawingHelper:
 class GoalTrackerPDF:
     """Generates the Goal Tracker PDF with all layout logic."""
 
-    def __init__(self, config: GoalTrackerConfig):
+    def __init__(self, config: GoalTrackerConfig, year: Optional[int] = None):
         """
         Initialize PDF generator.
 
         Args:
             config: GoalTrackerConfig instance
+            year: Year to display in the header; defaults to current year
         """
         self.config = config
         self.page_config = config.get_page_config()
@@ -374,6 +382,7 @@ class GoalTrackerPDF:
         self.colors = config.get_colors()
         self.layout_config = config.get_layout()
         self.layout = LayoutManager(self.page_config, self.layout_config)
+        self.year = year if year is not None else datetime.now().year
 
     def generate(self, output_path: str) -> None:
         """
@@ -422,33 +431,16 @@ class GoalTrackerPDF:
         grid_width - left_w
         pad_x = 0.1 * inch
 
-        # Left: Title and Date aligned to grid left
+        # Left: Title aligned to grid left (include year in title)
         title_y = header_top_y - 0.10 * inch
         DrawingHelper.draw_text(
             c,
-            "Goal Tracker",
+            f"Goal Tracker for {self.year}",
             grid_left + pad_x,
             title_y,
             font="Helvetica-Bold",
             size=self.font_config.goal_line_size,
             color=self.colors["text"],
-        )
-
-        date_y = title_y - 0.15 * inch
-        DrawingHelper.draw_text(
-            c,
-            "Date:",
-            grid_left + pad_x,
-            date_y,
-            font=self.font_config.family,
-            size=self.font_config.goal_line_size,
-            color=self.colors["text"],
-        )
-        date_line_start = grid_left + pad_x + 0.6 * inch
-        # Make the date line fit within the left section
-        date_line_end = right_x - pad_x
-        DrawingHelper.draw_line(
-            c, date_line_start, date_y, date_line_end, date_y, stroke_width=0.5, color=self.colors["text"]
         )
 
         # Right: Goal label and two lines, aligned to grid right
@@ -466,8 +458,9 @@ class GoalTrackerPDF:
         goal_line_end = grid_right - pad_x  # Align to grid right
         # Align the first input line with the Goal label baseline
         line1_y = goal_label_y
-        # Align second line with Date baseline
-        line2_y = date_y
+        # Second line below for additional goal detail with extra spacing between lines
+        line_spacing = 0.05 * inch
+        line2_y = title_y - 0.15 * inch - line_spacing
         DrawingHelper.draw_line(
             c, goal_line_start, line1_y, goal_line_end, line1_y, stroke_width=0.5, color=self.colors["text"]
         )
@@ -540,6 +533,8 @@ class GoalTrackerPDF:
             line_start = col_positions["weekly"] + 0.1 * inch
             # Apply 1/8" trim on the left for all weekly lines
             line_start += 0.125 * inch
+            # Shorten the left side by an additional ~0.1" to keep day numbers off the line
+            line_start += 0.1 * inch
 
             # Base right boundary with prior adjustments
             line_end = (
@@ -748,18 +743,38 @@ class GoalTrackerPDF:
             c: Canvas object
         """
         col_x = self.layout.get_column_x_positions()["weekly"]
-        self.layout.get_column_widths()["weekly"]
+        col_width = self.layout.get_column_widths()["weekly"]
         row_height = self.layout.get_row_height()
         layout_config = self.config.get_layout()
         label_padding_y = layout_config.get("label_padding_y", 0.07) * inch
 
-        for week in range(1, self.layout.WEEKS_IN_YEAR + 1):
-            y = self.layout.get_week_y_position(week)
+        # Find the Monday of ISO week 1 for the given year
+        # ISO week 1 is the week containing the first Thursday (or Jan 4)
+        jan4 = datetime(self.year, 1, 4)
+        # Find the Monday of the week containing Jan 4
+        days_since_monday = jan4.weekday()  # 0=Monday, 6=Sunday
+        iso_week1_monday = jan4 - timedelta(days=days_since_monday)
+        # Determine if the ISO year has 53 weeks (ISO last week check via Dec 28)
+        has_iso_53 = datetime(self.year, 12, 28).isocalendar()[1] == 53
+        start_iso_week = 2 if has_iso_53 else 1
 
-            # Draw week number with label padding below the grey line, right-aligned
-            week_text = f"{week}:"
-            # Position x at the right edge where the number should end
-            text_x = col_x + 0.2 * inch
+        for row_index in range(1, self.layout.WEEKS_IN_YEAR + 1):
+            y = self.layout.get_week_y_position(row_index)
+
+            # Calculate actual date range for this ISO week (Monday to Friday)
+            iso_week_num = start_iso_week + row_index - 1
+            week_monday = iso_week1_monday + timedelta(days=(iso_week_num - 1) * 7)
+            week_friday = week_monday + timedelta(days=4)
+
+            # Format the date range with just day numbers
+            day_range = f"{week_monday.day}-{week_friday.day}"
+
+            # Draw only the day range, centered within a narrow band near the column start
+            week_text = f"{day_range}"
+            week_text_width = c.stringWidth(week_text, self.font_config.family, self.font_config.week_number_size - 1)
+            band_start = col_x + 0.03 * inch
+            band_width = 0.25 * inch
+            text_x = band_start + (band_width - week_text_width) / 2
             y_text = y - row_height / 2 - label_padding_y
 
             DrawingHelper.draw_text(
@@ -768,14 +783,15 @@ class GoalTrackerPDF:
                 text_x,
                 y_text,
                 font=self.font_config.family,
-                size=self.font_config.week_number_size,
-                color=self.colors["week_number"],  # Use grey color
-                align="right",
+                size=self.font_config.week_number_size - 1,
+                color=self.colors["week_number"],
+                align="left",
             )
 
             # Catch-up messaging in weekly column
-            if self.layout.is_catch_up_week(week):
-                quarter = self.layout.get_quarter_for_week(week)
+            # Keep catch-up markers tied to the row positions (13, 26, 39, 52)
+            if self.layout.is_catch_up_week(row_index):
+                quarter = self.layout.get_quarter_for_week(row_index)
                 if quarter == 4:
                     catch_up_text = "Close out Q4. Set next year's goals."
                 elif quarter == 1:
@@ -783,8 +799,8 @@ class GoalTrackerPDF:
                 else:
                     catch_up_text = f"Close out Q{quarter}. Set Q{quarter + 1} goals."
 
-                # Place message starting just to the right of the week number
-                message_x = col_x + 0.35 * inch
+                # Place message starting just to the right of the day range (~0.40" after day numbers)
+                message_x = col_x + 0.43 * inch
                 DrawingHelper.draw_text(
                     c,
                     catch_up_text,
@@ -833,8 +849,11 @@ def main() -> None:
         "--config", default="config.yaml", help="Path to configuration file (default: config.yaml)"
     )
     parser.add_argument("--output", default=None, help="Output PDF filename (default: from config.yaml)")
+    parser.add_argument("year", nargs="?", type=int, help="Year to display in the header (default: current year)")
 
     args = parser.parse_args()
+
+    year = args.year if args.year is not None else datetime.now().year
 
     try:
         # Load configuration
@@ -848,8 +867,15 @@ def main() -> None:
             output_filename = config.get_output_filename()
             output_path = output_dir / output_filename
 
+        # Inform user if using ISO week 2-53 alignment
+        try:
+            if datetime(year, 12, 28).isocalendar()[1] == 53:
+                print("Note: For better alignment, starting at ISO week 2.")
+        except Exception:
+            pass
+
         # Generate PDF
-        pdf_generator = GoalTrackerPDF(config)
+        pdf_generator = GoalTrackerPDF(config, year=year)
         pdf_generator.generate(str(output_path))
 
         print(f"✓ PDF generated successfully: {output_path}")
