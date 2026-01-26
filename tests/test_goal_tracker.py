@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+import goal_tracker
 from goal_tracker import (
     DrawingHelper,
     FontConfig,
@@ -13,6 +14,7 @@ from goal_tracker import (
     GoalTrackerPDF,
     LayoutManager,
     PageConfig,
+  main as goal_tracker_main,
 )
 
 
@@ -358,6 +360,119 @@ output:
 
         assert output_path.exists()
         assert output_path.stat().st_size > 0
+
+
+def test_iso_week_shift_starts_at_week2_for_53_week_year(tmp_path):
+    """Week labels should start at ISO week 2 in 53-week years (e.g., 2020 -> 6-10 for first row)."""
+    config_file = tmp_path / "config.yaml"
+    config_content = """
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+colors:
+  grid_line: [0, 0, 0]
+  light_grid: [180, 180, 180]
+  text: [0, 0, 0]
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+
+output:
+  directory: output
+  filename: goal_tracker_template.pdf
+"""
+    config_file.write_text(config_content)
+
+    config = GoalTrackerConfig(str(config_file))
+    pdf = GoalTrackerPDF(config, year=2020)  # 2020 has ISO week 53
+
+    c = Mock()
+    c.stringWidth.return_value = 10  # deterministic width for positioning
+
+    pdf.draw_weekly_column(c)
+
+    first_label = c.drawString.call_args_list[0][0][2]
+    assert first_label == "6-10"
+
+
+def test_console_note_for_iso53_year(monkeypatch, tmp_path, capsys):
+    """Console note should appear when the selected year has 53 ISO weeks."""
+    config_file = tmp_path / "config.yaml"
+    config_content = """
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+colors:
+  grid_line: [0, 0, 0]
+  light_grid: [180, 180, 180]
+  text: [0, 0, 0]
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+
+output:
+  directory: output
+  filename: goal_tracker_template.pdf
+"""
+    config_file.write_text(config_content)
+
+    # Avoid generating an actual PDF during this test
+    monkeypatch.setattr(goal_tracker.GoalTrackerPDF, "generate", lambda self, output_path: None)
+
+    output_path = tmp_path / "out.pdf"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "goal_tracker.py",
+            "--config",
+            str(config_file),
+            "--output",
+            str(output_path),
+            "2020",  # Year with ISO week 53
+        ],
+        raising=False,
+    )
+
+    goal_tracker_main()
+
+    out, _ = capsys.readouterr()
+    assert "Note: For better alignment, starting at ISO week 2." in out
 
 
 class TestIntegration:
