@@ -302,6 +302,14 @@ class TestDrawingHelper:
         c.setFillColorRGB.assert_called()
         c.drawString.assert_called_with(0, 0, "Test")
 
+    @patch("tracker_core.canvas.Canvas")
+    def test_draw_diamond(self, mock_canvas):
+        """Test drawing a diamond."""
+        c = Mock()
+        DrawingHelper.draw_diamond(c, center_x=10, center_y=20, width=8, height=6)
+
+        assert c.line.call_count == 4
+
 
 class TestGoalTrackerPDF:
     """Tests for GoalTrackerPDF class."""
@@ -715,6 +723,155 @@ output:
     assert "Close out Q4." in drawn_text
 
 
+def test_project_checkbox_column_uses_diamonds(tmp_path, monkeypatch):
+    """Project style should draw diamonds instead of square checkboxes."""
+    config_file = tmp_path / "config.yaml"
+    config_content = """
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+colors:
+  grid_line: [0, 0, 0]
+  light_grid: [180, 180, 180]
+  text: [0, 0, 0]
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+
+output:
+  directory: output
+  filename: goal_tracker_template.pdf
+"""
+    config_file.write_text(config_content)
+
+    config = GoalTrackerConfig(str(config_file))
+    pdf = GoalTrackerPDF(config, year=2026, tracker_type="Project")
+
+    calls = {"diamond": 0, "rectangle": 0}
+
+    def _capture_diamond(c, center_x, center_y, width, height, stroke_width=1, color=(0, 0, 0)):
+        calls["diamond"] += 1
+        assert height <= pdf.layout.get_row_height()
+
+    def _capture_rectangle(c, x, y, width, height, stroke_width=1, color=(0, 0, 0)):
+        calls["rectangle"] += 1
+
+    monkeypatch.setattr(DrawingHelper, "draw_diamond", _capture_diamond)
+    monkeypatch.setattr(DrawingHelper, "draw_rectangle", _capture_rectangle)
+
+    pdf.draw_checkbox_column(Mock())
+
+    assert calls["diamond"] == 52
+    assert calls["rectangle"] == 0
+
+
+def test_project_grid_keeps_quarter_tops_and_drops_three_month_box_borders(tmp_path, monkeypatch):
+    """Project style should keep quarter top lines but remove 3-month outer month-box borders."""
+    config_file = tmp_path / "config.yaml"
+    config_content = """
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+colors:
+  grid_line: [0, 0, 0]
+  light_grid: [180, 180, 180]
+  text: [0, 0, 0]
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+
+output:
+  directory: output
+  filename: goal_tracker_template.pdf
+"""
+    config_file.write_text(config_content)
+
+    config = GoalTrackerConfig(str(config_file))
+    goal_pdf = GoalTrackerPDF(config, year=2026, tracker_type="Goal")
+    project_pdf = GoalTrackerPDF(config, year=2026, tracker_type="Project")
+    quarter_x = goal_pdf.layout.get_column_x_positions()["quarterly"]
+    monthly_x = goal_pdf.layout.get_column_x_positions()["monthly"]
+    x_right = (
+        project_pdf.layout.get_column_x_positions()["checkbox"]
+        + project_pdf.layout.get_column_widths()["checkbox"]
+    )
+
+    goal_x_values = []
+    project_x_values = []
+    project_lines = []
+
+    def _capture_goal_rect(c, x, y, width, height, stroke_width=1, color=(0, 0, 0)):
+        goal_x_values.append(x)
+
+    def _capture_project_rect(c, x, y, width, height, stroke_width=1, color=(0, 0, 0)):
+        project_x_values.append(x)
+
+    def _capture_project_line(c, x1, y1, x2, y2, stroke_width=0.5, color=(0, 0, 0), dash=None):
+        project_lines.append((x1, y1, x2, y2, stroke_width))
+
+    monkeypatch.setattr(DrawingHelper, "draw_rectangle", _capture_goal_rect)
+    goal_pdf.draw_grid(Mock())
+
+    monkeypatch.setattr(DrawingHelper, "draw_rectangle", _capture_project_rect)
+    monkeypatch.setattr(DrawingHelper, "draw_line", _capture_project_line)
+    project_pdf.draw_grid(Mock())
+
+    assert any(abs(x - quarter_x) < 0.0001 for x in goal_x_values)
+    assert not any(abs(x - quarter_x) < 0.0001 for x in project_x_values)
+
+    # Project style keeps quarter top borders (4 lines across full quarter region width).
+    quarter_top_lines = [
+        line
+        for line in project_lines
+        if abs(line[0] - quarter_x) < 0.0001 and abs(line[2] - x_right) < 0.0001 and abs(line[4] - 1.0) < 0.0001
+    ]
+    assert len(quarter_top_lines) == 4
+
+    # Project style draws only internal month separators (months 1,2,4,5,7,8,10,11), not quarter-end borders.
+    month_separator_lines = [
+        line
+        for line in project_lines
+        if abs(line[0] - monthly_x) < 0.0001 and abs(line[2] - x_right) < 0.0001 and abs(line[4] - 0.75) < 0.0001
+    ]
+    assert len(month_separator_lines) == 8
+
+
 class TestIntegration:
     """Integration tests."""
 
@@ -769,3 +926,256 @@ output:
         # Verify PDF was created
         assert output_path.exists()
         assert output_path.stat().st_size > 0
+
+
+class TestCoverageGaps:
+    """Targeted tests for previously uncovered high-value branches."""
+
+    def test_validate_config_missing_required_key_raises_value_error(self, tmp_path):
+        """Missing required config keys should raise ValueError."""
+        config_file = tmp_path / "config.yaml"
+        config_content = """
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+
+output:
+  directory: output
+  filename: goal_tracker_template.pdf
+"""
+        config_file.write_text(config_content)
+
+        with pytest.raises(ValueError, match="Missing required config key: colors"):
+            GoalTrackerConfig(str(config_file))
+
+    @pytest.mark.parametrize(
+        "week_number,expected_month",
+        [
+            (13, -1),
+            (1, 1),
+            (6, 2),
+            (17, 4),
+            (45, 11),
+            (60, -1),
+        ],
+    )
+    def test_get_month_for_week_mapping(self, week_number, expected_month):
+        """Week-to-month mapping should include catch-up and out-of-range behavior."""
+        assert LayoutManager.get_month_for_week(week_number) == expected_month
+
+    def test_draw_line_with_dash_pattern(self):
+        """Dashed line drawing should set and reset dash pattern."""
+        c = Mock()
+        DrawingHelper.draw_line(c, 0, 0, 100, 100, dash=[2, 2])
+
+        c.setDash.assert_any_call([2, 2])
+        c.setDash.assert_any_call([])
+
+    def test_draw_text_right_alignment_uses_draw_right_string(self):
+        """Right alignment should render with drawRightString."""
+        c = Mock()
+        DrawingHelper.draw_text(c, "Right", 10, 20, align="right")
+
+        c.drawRightString.assert_called_once_with(10, 20, "Right")
+        c.drawString.assert_not_called()
+
+    def test_goal_tracker_pdf_rejects_non_string_tracker_type(self, tmp_path):
+        """Non-string tracker_type should raise TypeError."""
+        config_file = tmp_path / "config.yaml"
+        config_content = """
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+colors:
+  grid_line: [0, 0, 0]
+  light_grid: [180, 180, 180]
+  text: [0, 0, 0]
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+
+output:
+  directory: output
+  filename: goal_tracker_template.pdf
+"""
+        config_file.write_text(config_content)
+        config = GoalTrackerConfig(str(config_file))
+
+        with pytest.raises(TypeError, match="tracker_type must be a string"):
+            GoalTrackerPDF(config, tracker_type=123)
+
+    def test_goal_tracker_pdf_rejects_blank_tracker_type(self, tmp_path):
+        """Blank tracker_type should raise ValueError."""
+        config_file = tmp_path / "config.yaml"
+        config_content = """
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+colors:
+  grid_line: [0, 0, 0]
+  light_grid: [180, 180, 180]
+  text: [0, 0, 0]
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+
+output:
+  directory: output
+  filename: goal_tracker_template.pdf
+"""
+        config_file.write_text(config_content)
+        config = GoalTrackerConfig(str(config_file))
+
+        with pytest.raises(ValueError, match="tracker_type must be a non-empty string"):
+            GoalTrackerPDF(config, tracker_type="   ")
+
+    def test_draw_grid_row_stripes_branch(self, tmp_path, monkeypatch):
+        """Row stripe branch should run when show_row_stripes is enabled."""
+        config_file = tmp_path / "config.yaml"
+        config_content = """
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+colors:
+  grid_line: [0, 0, 0]
+  light_grid: [180, 180, 180]
+  text: [0, 0, 0]
+  row_stripe: [230, 230, 230]
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+  show_row_stripes: true
+
+output:
+  directory: output
+  filename: goal_tracker_template.pdf
+"""
+        config_file.write_text(config_content)
+        config = GoalTrackerConfig(str(config_file))
+        pdf = GoalTrackerPDF(config, year=2026)
+
+        monkeypatch.setattr(DrawingHelper, "draw_line", lambda *args, **kwargs: None)
+        monkeypatch.setattr(DrawingHelper, "draw_rectangle", lambda *args, **kwargs: None)
+
+        c = Mock()
+        pdf.draw_grid(c)
+
+        assert c.rect.call_count > 0
+
+    def test_run_tracker_cli_handles_yaml_error(self, monkeypatch, capsys):
+        """CLI should exit with status 1 and message on YAML parse errors."""
+
+        def _raise_yaml(config_path):
+            raise tracker_core.yaml.YAMLError("bad yaml")
+
+        monkeypatch.setattr(tracker_core, "GoalTrackerConfig", _raise_yaml)
+        monkeypatch.setattr("sys.argv", ["goal_tracker.py"], raising=False)
+
+        with pytest.raises(SystemExit) as exc_info:
+            tracker_core.run_tracker_cli("Goal", "desc")
+
+        assert exc_info.value.code == 1
+        _, err = capsys.readouterr()
+        assert "Error parsing configuration file:" in err
+
+    def test_run_tracker_cli_handles_unexpected_error(self, monkeypatch, capsys):
+        """CLI should exit with status 1 and message on unexpected errors."""
+
+        class _ConfigStub:
+            def get_output_dir(self):
+                return Path("output")
+
+            def get_output_filename(self):
+                return "goal_tracker_template.pdf"
+
+        class _BrokenPDF:
+            def __init__(self, config, year=None, tracker_type="Goal"):
+                pass
+
+            def generate(self, output_path):
+                raise RuntimeError("boom")
+
+        monkeypatch.setattr(tracker_core, "GoalTrackerConfig", lambda config_path: _ConfigStub())
+        monkeypatch.setattr(tracker_core, "GoalTrackerPDF", _BrokenPDF)
+        monkeypatch.setattr("sys.argv", ["goal_tracker.py"], raising=False)
+
+        with pytest.raises(SystemExit) as exc_info:
+            tracker_core.run_tracker_cli("Goal", "desc")
+
+        assert exc_info.value.code == 1
+        _, err = capsys.readouterr()
+        assert "Error generating PDF:" in err

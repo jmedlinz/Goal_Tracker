@@ -333,6 +333,46 @@ class DrawingHelper:
         c.setStrokeColorRGB(0, 0, 0)  # Reset to black.
 
     @staticmethod
+    def draw_diamond(
+        c: canvas.Canvas,
+        center_x: float,
+        center_y: float,
+        width: float,
+        height: float,
+        stroke_width: float = 1,
+        color: Tuple[int, int, int] = (0, 0, 0),
+    ) -> None:
+        """
+        Draw a diamond outline centered on the provided coordinates.
+
+        Args:
+            c: Canvas object
+            center_x, center_y: Diamond center coordinates
+            width, height: Diamond extents from left-to-right and top-to-bottom
+            stroke_width: Line width in points
+            color: RGB color tuple
+        """
+        half_width = width / 2
+        half_height = height / 2
+
+        top_x = center_x
+        top_y = center_y + half_height
+        right_x = center_x + half_width
+        right_y = center_y
+        bottom_x = center_x
+        bottom_y = center_y - half_height
+        left_x = center_x - half_width
+        left_y = center_y
+
+        c.setLineWidth(stroke_width)
+        c.setStrokeColorRGB(*[x / 255 for x in color])
+        c.line(top_x, top_y, right_x, right_y)
+        c.line(right_x, right_y, bottom_x, bottom_y)
+        c.line(bottom_x, bottom_y, left_x, left_y)
+        c.line(left_x, left_y, top_x, top_y)
+        c.setStrokeColorRGB(0, 0, 0)  # Reset to black.
+
+    @staticmethod
     def draw_text(
         c: canvas.Canvas,
         text: str,
@@ -565,31 +605,47 @@ class GoalTrackerPDF:
                 color=self.colors["text"],  # Dark/black line.
             )
 
-        # Draw quarter boxes.
-        for quarter_num in range(1, self.layout.QUARTERS_IN_YEAR + 1):
-            start_week = (quarter_num - 1) * self.layout.WEEKS_PER_QUARTER + 1
-            end_week = start_week + self.layout.WEEKS_PER_QUARTER - 1
+        # Draw quarter boxes for Goal style, and top separators only for Project style.
+        if self.tracker_type.lower() != "project":
+            for quarter_num in range(1, self.layout.QUARTERS_IN_YEAR + 1):
+                start_week = (quarter_num - 1) * self.layout.WEEKS_PER_QUARTER + 1
+                end_week = start_week + self.layout.WEEKS_PER_QUARTER - 1
 
-            # Top of the quarter (top of first week row).
-            y_top = self.layout.get_week_y_position(start_week)
+                # Top of the quarter (top of first week row).
+                y_top = self.layout.get_week_y_position(start_week)
 
-            # Bottom of the quarter (bottom of last week row).
-            y_bottom = self.layout.get_week_y_position(end_week) - row_height
+                # Bottom of the quarter (bottom of last week row).
+                y_bottom = self.layout.get_week_y_position(end_week) - row_height
 
-            # Left edge (quarterly column start) and right edge (right side of checkbox column).
+                # Left edge (quarterly column start) and right edge (right side of checkbox column).
+                x_left = col_positions["quarterly"]
+                x_right = col_positions["checkbox"] + col_widths["checkbox"]
+
+                # Draw the box outline.
+                DrawingHelper.draw_rectangle(
+                    c,
+                    x_left,
+                    y_bottom,
+                    x_right - x_left,
+                    y_top - y_bottom,
+                    stroke_width=1.0,
+                    color=self.colors["grid_line"],
+                )
+        else:
             x_left = col_positions["quarterly"]
             x_right = col_positions["checkbox"] + col_widths["checkbox"]
-
-            # Draw the box outline.
-            DrawingHelper.draw_rectangle(
-                c,
-                x_left,
-                y_bottom,
-                x_right - x_left,
-                y_top - y_bottom,
-                stroke_width=1.0,
-                color=self.colors["grid_line"],
-            )
+            for quarter_num in range(1, self.layout.QUARTERS_IN_YEAR + 1):
+                start_week = (quarter_num - 1) * self.layout.WEEKS_PER_QUARTER + 1
+                y_top = self.layout.get_week_y_position(start_week)
+                DrawingHelper.draw_line(
+                    c,
+                    x_left,
+                    y_top,
+                    x_right,
+                    y_top,
+                    stroke_width=1.0,
+                    color=self.colors["grid_line"],
+                )
 
         # Draw month boxes.
         # Build month structure like in draw_monthly_column.
@@ -629,16 +685,30 @@ class GoalTrackerPDF:
             x_left = col_positions["monthly"]
             x_right = col_positions["checkbox"] + col_widths["checkbox"]
 
-            # Draw the box outline.
-            DrawingHelper.draw_rectangle(
-                c,
-                x_left,
-                y_bottom,
-                x_right - x_left,
-                y_top - y_bottom,
-                stroke_width=0.75,
-                color=self.colors["grid_line"],
-            )
+            if self.tracker_type.lower() == "project":
+                # Keep only internal month separators for Project style.
+                # Skip quarter-end month borders (3, 6, 9, 12) so quarter groups are not boxed.
+                if month_num % 3 != 0:
+                    DrawingHelper.draw_line(
+                        c,
+                        x_left,
+                        y_bottom,
+                        x_right,
+                        y_bottom,
+                        stroke_width=0.75,
+                        color=self.colors["grid_line"],
+                    )
+            else:
+                # Draw the box outline.
+                DrawingHelper.draw_rectangle(
+                    c,
+                    x_left,
+                    y_bottom,
+                    x_right - x_left,
+                    y_top - y_bottom,
+                    stroke_width=0.75,
+                    color=self.colors["grid_line"],
+                )
 
     def draw_quarterly_column(self, c: canvas.Canvas) -> None:
         """
@@ -840,19 +910,35 @@ class GoalTrackerPDF:
             y = self.layout.get_week_y_position(week)
 
             # Center checkbox in column.
-            box_x = col_x + (checkbox_size - self.layout_config["checkbox_size"] * inch) / 2
-            box_y = y - row_height / 2 - self.layout_config["checkbox_size"] * inch / 2
+            base_size = self.layout_config["checkbox_size"] * inch
 
-            # Draw checkbox square.
-            DrawingHelper.draw_rectangle(
-                c,
-                box_x,
-                box_y,
-                self.layout_config["checkbox_size"] * inch,
-                self.layout_config["checkbox_size"] * inch,
-                stroke_width=1,
-                color=self.colors["text"],
-            )
+            if self.tracker_type.lower() == "project":
+                diamond_size = min(base_size, row_height * 0.75)
+                center_x = col_x + checkbox_size / 2
+                center_y = y - row_height / 2
+                DrawingHelper.draw_diamond(
+                    c,
+                    center_x,
+                    center_y,
+                    diamond_size,
+                    diamond_size,
+                    stroke_width=1,
+                    color=self.colors["text"],
+                )
+            else:
+                box_x = col_x + (checkbox_size - base_size) / 2
+                box_y = y - row_height / 2 - base_size / 2
+
+                # Draw checkbox square.
+                DrawingHelper.draw_rectangle(
+                    c,
+                    box_x,
+                    box_y,
+                    base_size,
+                    base_size,
+                    stroke_width=1,
+                    color=self.colors["text"],
+                )
 
 
 def run_tracker_cli(tracker_type: str, description: str) -> None:

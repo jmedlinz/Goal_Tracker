@@ -44,13 +44,31 @@ poetry run python goal_tracker.py
 
 This generates a PDF using the default configuration file (`config.yaml`) and saves it to the `output/` directory.
 
+### Interactive Launcher (Choose Goal or Project)
+
+```bash
+poetry run python main.py
+```
+
+This prompts you to choose:
+1. Goal Tracker
+2. Project Tracker
+
+Then it runs the selected generator.
+
 ### Generate Project Tracker PDF
 
 ```bash
 poetry run python project_tracker.py
 ```
 
-This generates the same layout and structure as the Goal Tracker, but uses Project-specific header labels.
+This generates a Project Tracker variant with project-specific styling and saves to `output/project_tracker_template.pdf` by default.
+
+### Generate Project Tracker with Custom Output Filename
+
+```bash
+poetry run python project_tracker.py --output my_project_tracker.pdf
+```
 
 ### Generate PDF with Custom Configuration
 
@@ -74,6 +92,7 @@ poetry run python goal_tracker.py --help
 
 ```
 Goal_Tracker/
+├── main.py                  # Interactive launcher for Goal/Project selection
 ├── tracker_core.py          # Shared tracker logic and rendering
 ├── goal_tracker.py          # Goal Tracker entry point
 ├── project_tracker.py       # Project Tracker entry point
@@ -86,7 +105,8 @@ Goal_Tracker/
 ├── documentation/
 │   └── reqs.md             # Detailed requirements and specifications
 ├── tests/
-│   └── test_goal_tracker.py # Unit and integration tests
+│   ├── test_goal_tracker.py # Unit and integration tests
+│   └── test_main.py         # Tests for interactive launcher
 └── output/                  # Generated PDFs (created at runtime)
 ```
 
@@ -146,15 +166,17 @@ layout:
 ```yaml
 output:
   directory: output              # Output directory
-  filename: goal_tracker_template.pdf  # Default filename
+  filename: goal_tracker_template.pdf  # Default filename for Goal Tracker
 ```
+
+Project Tracker defaults to `project_tracker_template.pdf` when no `--output` value is provided.
 
 ## PDF Layout
 
 ### Header Section
-- **Title**: "Goal Tracker" (compact, same size as Goal label)
+- **Title**: "Goal Tracker" or "Project Tracker" (based on entry point)
 - **Date**: Label "Date:" with a line for user input, placed under the title
-- **Goal**: Label "Goal:" with two lines, aligned to the right of the Title/Date block
+- **Target Label**: "Goal:" or "Project:" with two lines, aligned to the right of the Title/Date block
 - **Spacing**: Compact header; no separator line under the header
 
 ### Column Structure (Left to Right)
@@ -165,8 +187,9 @@ output:
 
 ### Special Features
 - **52 Weeks**: One row per week of the year
-- **Catch-up Weeks**: Weeks 13, 26, 39, and 52 have no month labels (monthly column is blank); weekly column shows italic guidance (e.g., "Close out Q1. Set Q2 goals.")
-- **Boxes**: Each quarter and month are outlined with a box for visual grouping
+- **Catch-up Weeks**: Weeks 13, 26, 39, and 52 have no month labels (monthly column is blank); weekly column shows italic guidance using "Plan next quarter." for Q1-Q3 and "Close out Q4." for Q4
+- **Goal Style**: Square checkboxes and quarter/month grouping boxes
+- **Project Style**: Diamond checkboxes, quarter top borders, and month separators without full 3-month outer boxes
 - **Alignment**: Grid is horizontally centered and column content aligned to grid edges
 
 ## Layout Diagram
