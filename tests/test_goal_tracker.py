@@ -2,19 +2,21 @@
 Unit and integration tests for Goal Tracker PDF Generator
 """
 
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
-import goal_tracker
-from goal_tracker import (
+import tracker_core
+from goal_tracker import main as goal_tracker_main
+from project_tracker import main as project_tracker_main
+from tracker_core import (
     DrawingHelper,
     FontConfig,
     GoalTrackerConfig,
     GoalTrackerPDF,
     LayoutManager,
     PageConfig,
-  main as goal_tracker_main,
 )
 
 
@@ -270,7 +272,7 @@ class TestLayoutManager:
 class TestDrawingHelper:
     """Tests for DrawingHelper class."""
 
-    @patch("goal_tracker.canvas.Canvas")
+    @patch("tracker_core.canvas.Canvas")
     def test_draw_line(self, mock_canvas):
         """Test drawing a line."""
         c = Mock()
@@ -280,7 +282,7 @@ class TestDrawingHelper:
         c.setStrokeColorRGB.assert_called()
         c.line.assert_called_with(0, 0, 100, 100)
 
-    @patch("goal_tracker.canvas.Canvas")
+    @patch("tracker_core.canvas.Canvas")
     def test_draw_rectangle(self, mock_canvas):
         """Test drawing a rectangle."""
         c = Mock()
@@ -290,7 +292,7 @@ class TestDrawingHelper:
         c.setStrokeColorRGB.assert_called()
         c.rect.assert_called()
 
-    @patch("goal_tracker.canvas.Canvas")
+    @patch("tracker_core.canvas.Canvas")
     def test_draw_text(self, mock_canvas):
         """Test drawing text."""
         c = Mock()
@@ -360,6 +362,61 @@ output:
 
         assert output_path.exists()
         assert output_path.stat().st_size > 0
+
+    @pytest.mark.parametrize(
+        "tracker_type,expected_title,expected_label",
+        [
+            ("Goal", "Goal Tracker for 2026", "Goal:"),
+            ("Project", "Project Tracker for 2026", "Project:"),
+        ],
+    )
+    def test_draw_header_uses_tracker_type(self, tmp_path, tracker_type, expected_title, expected_label):
+        """Test header text uses the configured tracker type for title and label."""
+        config_file = tmp_path / "config.yaml"
+        config_content = """
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+colors:
+  grid_line: [0, 0, 0]
+  light_grid: [180, 180, 180]
+  text: [0, 0, 0]
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+
+output:
+  directory: output
+  filename: goal_tracker_template.pdf
+"""
+        config_file.write_text(config_content)
+        config = GoalTrackerConfig(str(config_file))
+        pdf = GoalTrackerPDF(config, year=2026, tracker_type=tracker_type)
+
+        c = Mock()
+        pdf.draw_header(c)
+
+        drawn_text = [call.args[2] for call in c.drawString.call_args_list]
+        assert expected_title in drawn_text
+        assert expected_label in drawn_text
 
 
 def test_iso_week_shift_starts_at_week2_for_53_week_year(tmp_path):
@@ -453,7 +510,7 @@ output:
     config_file.write_text(config_content)
 
     # Avoid generating an actual PDF during this test
-    monkeypatch.setattr(goal_tracker.GoalTrackerPDF, "generate", lambda self, output_path: None)
+    monkeypatch.setattr(tracker_core.GoalTrackerPDF, "generate", lambda self, output_path: None)
 
     output_path = tmp_path / "out.pdf"
     monkeypatch.setattr(
@@ -473,6 +530,189 @@ output:
 
     out, _ = capsys.readouterr()
     assert "Note: For better alignment, starting at ISO week 2." in out
+
+
+def test_project_tracker_cli_uses_project_type(monkeypatch, tmp_path):
+    """Project tracker entry point should instantiate generator with Project tracker type."""
+    config_file = tmp_path / "config.yaml"
+    config_content = """
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+colors:
+  grid_line: [0, 0, 0]
+  light_grid: [180, 180, 180]
+  text: [0, 0, 0]
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+
+output:
+  directory: output
+  filename: goal_tracker_template.pdf
+"""
+    config_file.write_text(config_content)
+
+    seen_tracker_types = []
+
+    def _capture_generate(self, output_path):
+        seen_tracker_types.append(self.tracker_type)
+
+    monkeypatch.setattr(tracker_core.GoalTrackerPDF, "generate", _capture_generate)
+
+    output_path = tmp_path / "project_out.pdf"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "project_tracker.py",
+            "--config",
+            str(config_file),
+            "--output",
+            str(output_path),
+            "2026",
+        ],
+        raising=False,
+    )
+
+    project_tracker_main()
+
+    assert seen_tracker_types == ["Project"]
+
+
+def test_project_tracker_default_output_filename(monkeypatch, tmp_path):
+    """Project tracker should default to project_tracker_template.pdf when output is not provided."""
+    config_file = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    config_content = f"""
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+colors:
+  grid_line: [0, 0, 0]
+  light_grid: [180, 180, 180]
+  text: [0, 0, 0]
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+
+output:
+  directory: {output_dir.as_posix()}
+  filename: goal_tracker_template.pdf
+"""
+    config_file.write_text(config_content)
+
+    seen_output_paths = []
+
+    def _capture_generate(self, output_path):
+        seen_output_paths.append(output_path)
+
+    monkeypatch.setattr(tracker_core.GoalTrackerPDF, "generate", _capture_generate)
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "project_tracker.py",
+            "--config",
+            str(config_file),
+            "2026",
+        ],
+        raising=False,
+    )
+
+    project_tracker_main()
+
+    assert len(seen_output_paths) == 1
+    assert Path(seen_output_paths[0]).name == "project_tracker_template.pdf"
+
+
+def test_catch_up_messages_use_new_wording(tmp_path):
+    """Catch-up messaging should use the new wording for Q1-Q4."""
+    config_file = tmp_path / "config.yaml"
+    config_content = """
+page:
+  size: letter
+  orientation: portrait
+  margins:
+    top: 0.5
+    bottom: 0.5
+    left: 0.5
+    right: 0.5
+
+fonts:
+  family: Helvetica
+  title_size: 18
+  goal_line_size: 10
+  quarter_label_size: 10
+  month_label_size: 9
+  week_number_size: 8
+
+colors:
+  grid_line: [0, 0, 0]
+  light_grid: [180, 180, 180]
+  text: [0, 0, 0]
+
+layout:
+  quarterly_column_width: 1.25
+  monthly_column_width: 1.25
+  weekly_column_width: 4.5
+  checkbox_size: 0.15
+  row_height: 0.185
+
+output:
+  directory: output
+  filename: goal_tracker_template.pdf
+"""
+    config_file.write_text(config_content)
+
+    config = GoalTrackerConfig(str(config_file))
+    pdf = GoalTrackerPDF(config, year=2026)
+
+    c = Mock()
+    c.stringWidth.return_value = 10
+
+    pdf.draw_weekly_column(c)
+
+    drawn_text = [call.args[2] for call in c.drawString.call_args_list]
+    assert "Close out Q1. Plan next quarter." in drawn_text
+    assert "Close out Q2. Plan next quarter." in drawn_text
+    assert "Close out Q3. Plan next quarter." in drawn_text
+    assert "Close out Q4." in drawn_text
 
 
 class TestIntegration:

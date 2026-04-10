@@ -143,6 +143,7 @@
         "activityBarBadge.background": "#72504e",
         "activityBarBadge.foreground": "#e7e7e7",
         "commandCenter.border": "#e7e7e799",
+        "commandCenter.foreground": "#000000",
         "sash.hoverBorder": "#8f8db1",
         "statusBar.background": "#716f9c",
         "statusBar.foreground": "#e7e7e7",
@@ -154,5 +155,7 @@
         "titleBar.inactiveBackground": "#716f9c99",
         "titleBar.inactiveForeground": "#e7e7e799"
     },
-    "peacock.color": "#716f9c"
+    "peacock.color": "#716f9c",
+    "python-envs.defaultEnvManager": "ms-python.python:poetry",
+    "python-envs.defaultPackageManager": "ms-python.python:poetry"
 }

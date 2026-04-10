@@ -44,6 +44,14 @@ poetry run python goal_tracker.py
 
 This generates a PDF using the default configuration file (`config.yaml`) and saves it to the `output/` directory.
 
+### Generate Project Tracker PDF
+
+```bash
+poetry run python project_tracker.py
+```
+
+This generates the same layout and structure as the Goal Tracker, but uses Project-specific header labels.
+
 ### Generate PDF with Custom Configuration
 
 ```bash
@@ -66,7 +74,9 @@ poetry run python goal_tracker.py --help
 
 ```
 Goal_Tracker/
-├── goal_tracker.py          # Main Python script
+├── tracker_core.py          # Shared tracker logic and rendering
+├── goal_tracker.py          # Goal Tracker entry point
+├── project_tracker.py       # Project Tracker entry point
 ├── config.yaml              # Configuration file
 ├── pyproject.toml           # Poetry dependencies
 ├── poetry.toml              # Poetry local configuration
@@ -198,7 +208,9 @@ poetry run pytest --cov=goal_tracker tests/
 - **GoalTrackerConfig**: Loads and validates YAML configuration
 - **LayoutManager**: Calculates positions and dimensions for all layout elements
 - **DrawingHelper**: Utility functions for drawing lines, boxes, and text
-- **GoalTrackerPDF**: Main PDF generation with drawing logic
+- **GoalTrackerPDF**: Shared PDF generation with parameterized tracker header labels
+- **goal_tracker.py**: Goal-specific CLI wrapper
+- **project_tracker.py**: Project-specific CLI wrapper
 
 ### Code Quality
 
